@@ -5,6 +5,14 @@ import { setCanvasImage } from "./canvas-button.js";
 import { renderConLinks } from "./embeds.js";
 import { COMANDOS, ejecutarComando, mostrarHint } from "./commands.js";
 
+const ENV = "dev"; // ← cambiá esto: "prod" o "dev"
+const TABLE = ENV === "prod" ? "notas" : "notas_dev";
+
+if (ENV === "dev") {
+  statusEl.textContent = "⚠ modo dev (notas_dev)";
+  statusEl.style.color = "#e67e00";
+}
+
 const SUPABASE_URL = "https://iypxmjxmhlkhkiwadann.supabase.co";
 const SUPABASE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5cHhtanhtaGxraGtpd2FkYW5uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMjk4NTcsImV4cCI6MjA5NjcwNTg1N30.nEahrHZdBETYGRFNtkAKHT8Tig_0crHa5PA9gQ0PVXE";
@@ -137,7 +145,9 @@ async function cargarDiaAnterior() {
   try {
     const res = await fetch(
       SUPABASE_URL +
-        "/rest/v1/notas?select=id,mensaje,color,fecha&fecha=eq." +
+        "/rest/v1/" +
+        TABLE +
+        "?select=id,mensaje,color,fecha&fecha=eq." +
         diaAPedir +
         "&order=id.asc",
       {
@@ -153,7 +163,9 @@ async function cargarDiaAnterior() {
         fechaMasAntigua = diaAPedir;
         const resPrev = await fetch(
           SUPABASE_URL +
-            "/rest/v1/notas?select=fecha&fecha=lt." +
+            "/rest/v1/" +
+            TABLE +
+            "?select=fecha&fecha=lt." +
             diaAPedir +
             "&order=fecha.desc&limit=1",
           {
@@ -303,7 +315,7 @@ async function guardar(mensaje) {
   const hora = now.toTimeString().slice(0, 8);
 
   try {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/notas", {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + TABLE, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -561,7 +573,9 @@ async function cargar() {
   try {
     const res = await fetch(
       SUPABASE_URL +
-        "/rest/v1/notas?select=id,mensaje,color,fecha&fecha=eq." +
+        "/rest/v1/" +
+        TABLE +
+        "?select=id,mensaje,color,fecha&fecha=eq." +
         hoy +
         "&order=id.asc",
       {
@@ -589,7 +603,9 @@ async function cargar() {
 
       const resPrev = await fetch(
         SUPABASE_URL +
-          "/rest/v1/notas?select=fecha&fecha=lt." +
+          "/rest/v1/" +
+          TABLE +
+          "?select=fecha&fecha=lt." +
           hoy +
           "&order=fecha.desc&limit=1",
         {
@@ -647,7 +663,7 @@ function iniciarRealtime() {
     .channel("notas-realtime")
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "notas" },
+      { event: "INSERT", schema: "public", table: TABLE },
       (payload) => {
         const r = payload.new;
         const alFinal = estaAlFinal();
@@ -665,6 +681,11 @@ function iniciarRealtime() {
     .subscribe();
 }
 
+if (ENV === "dev") {
+  statusEl.textContent = "⚠ modo dev (notas_dev)";
+  statusEl.style.color = "#e67e00";
+}
+
 updateHeight();
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", () => {
@@ -676,4 +697,8 @@ if (window.visualViewport) {
 }
 cargar().then(() => {
   iniciarRealtime();
+  if (ENV === "dev") {
+    statusEl.textContent = "⚠ modo dev (notas_dev)";
+    statusEl.style.color = "#e67e00";
+  }
 });
