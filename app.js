@@ -38,7 +38,6 @@ function loadLocalMessages() {
 // ========================
 // SEPARADOR DE FECHA
 // ========================
-// La columna "fecha" ya viene en formato "YYYY-MM-DD" hora Argentina.
 
 function formatearFechaSeparador(isoDate) {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -58,26 +57,20 @@ function insertarSeparadorFecha(isoDate) {
   committedEl.appendChild(div);
 }
 
-// Rastrea el último día renderizado para saber cuándo insertar un separador
 let ultimaFechaRenderizada = null;
-// Rastrea el día más antiguo cargado (para paginación hacia atrás)
 let fechaMasAntigua = null;
-// Flags de paginación
 let hasMasHistoria = true;
 let cargandoHistoria = false;
 
-// Renderiza un mensaje, insertando separador de día si corresponde
 function agregarMensaje(color, mensaje, id, fecha) {
   if (id && renderedMessageIds.has(id)) return;
   if (id) renderedMessageIds.add(id);
 
   mensaje = mensaje.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-  mensaje = mensaje.replace(/\n+$/, "");
-  if (mensaje.trim() === "") return;
+  if (mensaje.trim() === "" && mensaje.length === 0) return;
 
-  // Insertar separador si cambió el día
   if (fecha) {
-    const fechaDia = fecha.slice(0, 10); // "YYYY-MM-DD"
+    const fechaDia = fecha.slice(0, 10);
     if (fechaDia !== ultimaFechaRenderizada) {
       insertarSeparadorFecha(fechaDia);
       ultimaFechaRenderizada = fechaDia;
@@ -92,18 +85,14 @@ function agregarMensaje(color, mensaje, id, fecha) {
   committedEl.appendChild(span);
 }
 
-// Prependea mensajes y separadores al inicio del committedEl (para historia)
 function prependearMensajes(rows) {
   if (!rows.length) return;
-
-  // Construir un fragment con los mensajes del día anterior
   const frag = document.createDocumentFragment();
   let fechaDelBloque = null;
 
   rows.forEach((r) => {
     const fechaDia = (r.fecha || "").slice(0, 10);
     if (!fechaDelBloque) fechaDelBloque = fechaDia;
-
     const span = document.createElement("span");
     span.className = "msg";
     span.style.color = r.color || "#000";
@@ -111,16 +100,12 @@ function prependearMensajes(rows) {
       span.dataset.id = String(r.id);
       renderedMessageIds.add(r.id);
     }
-    let msg = (r.mensaje || "")
-      .replace(/\u00A0/g, " ")
-      .replace(/\u200B/g, "")
-      .replace(/\n+$/, "");
-    if (!msg.trim()) return;
+    let msg = (r.mensaje || "").replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+    if (msg.trim() === "" && msg.length === 0) return;
     renderConLinks(span, msg);
     frag.appendChild(span);
   });
 
-  // Separador del bloque (va al inicio del fragment)
   if (fechaDelBloque) {
     const div = document.createElement("div");
     div.className = "date-separator";
@@ -129,14 +114,12 @@ function prependearMensajes(rows) {
     fechaMasAntigua = fechaDelBloque;
   }
 
-  // Preservar posición de scroll al insertar arriba
   const scrollBefore = document.body.scrollHeight;
   committedEl.insertBefore(frag, committedEl.firstChild);
   const added = document.body.scrollHeight - scrollBefore;
   window.scrollBy(0, added);
 }
 
-// Calcula la fecha de ayer relativa a una fecha "YYYY-MM-DD"
 function fechaAnterior(isoDate) {
   const [y, m, d] = isoDate.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
@@ -144,14 +127,11 @@ function fechaAnterior(isoDate) {
   return dt.toISOString().slice(0, 10);
 }
 
-// Carga un día anterior desde Supabase y lo prepende
 async function cargarDiaAnterior() {
   if (cargandoHistoria || !hasMasHistoria || !fechaMasAntigua) return;
   cargandoHistoria = true;
   const diaAPedir = fechaAnterior(fechaMasAntigua);
   setStatus("cargando historia...", "#aaa");
-
-  // Pequeño retardo para que se sienta como una carga real
   await new Promise((r) => setTimeout(r, 380));
 
   try {
@@ -170,10 +150,7 @@ async function cargarDiaAnterior() {
     if (res.ok) {
       const rows = await res.json();
       if (!rows.length) {
-        // No hay mensajes ese día — intentar días más atrás buscando el anterior con datos
-        // Marcar como fecha más antigua sin datos y seguir retrocediendo
         fechaMasAntigua = diaAPedir;
-        // Buscar si hay algo antes
         const resPrev = await fetch(
           SUPABASE_URL +
             "/rest/v1/notas?select=fecha&fecha=lt." +
@@ -192,10 +169,7 @@ async function cargarDiaAnterior() {
             hasMasHistoria = false;
             setStatus("", "");
           } else {
-            // Hay más historia, pero el día inmediato anterior estaba vacío
-            // Actualizar fechaMasAntigua al día que tiene el próximo dato
             fechaMasAntigua = prevRows[0].fecha.slice(0, 10);
-            // Cargar ese día
             cargandoHistoria = false;
             await cargarDiaAnterior();
             return;
@@ -205,7 +179,6 @@ async function cargarDiaAnterior() {
         }
       } else {
         prependearMensajes(rows);
-        // Actualizar caché local (agregar al inicio)
         const localRows = loadLocalMessages();
         const ids = new Set(localRows.map((r) => r.id));
         const nuevos = rows.filter((r) => !ids.has(r.id));
@@ -216,7 +189,6 @@ async function cargarDiaAnterior() {
       setStatus("✗ error al cargar historia", "#e53935");
     }
   } catch (e) {
-    // Offline: intentar desde caché local
     const localRows = loadLocalMessages();
     const diaRows = localRows.filter(
       (r) => (r.fecha || "").slice(0, 10) === diaAPedir,
@@ -228,124 +200,67 @@ async function cargarDiaAnterior() {
     }
     setStatus("", "");
   }
-
   cargandoHistoria = false;
 }
 
-// Listener de scroll para cargar historia al llegar al top
 window.addEventListener("scroll", () => {
   if (window.scrollY < 40 && hasMasHistoria && !cargandoHistoria) {
     cargarDiaAnterior();
   }
 });
 
-let touchStartX = 0;
-let touchStartY = 0;
-let touchMoved = false;
-let touchPendingFocus = false;
-
-document.addEventListener("pointerdown", (e) => {
-  const target = e.target;
-
-  if (e.pointerType === "touch") {
-    touchMoved = false;
-    touchPendingFocus = false;
-    touchStartX = e.clientX;
-    touchStartY = e.clientY;
-  }
-
-  // Ignorar botones, canvas y links
-  if (target.closest("#btn-canvas") || target.closest("a")) return;
-
-  // Si toca directo sobre el editor, dejar que el browser maneje el cursor
-  if (target === editor) return;
-
-  // Si toca sobre committed: dejar que el browser maneje libremente (scroll, selección, lectura)
-  if (target.closest("#committed")) {
-    return;
-  }
-
-  if (e.pointerType === "touch") {
-    // Solo pendiente de focus si ya está al final
-    if (estaAlFinal()) touchPendingFocus = true;
-    return;
-  }
-
-  // Click en zona vacía en desktop: solo enfocar si ya está al final
-  if (!estaAlFinal()) return;
-  e.preventDefault();
-  focusEditorAtEnd();
-});
-
-document.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "touch" || !touchPendingFocus) return;
-  const dx = Math.abs(e.clientX - touchStartX);
-  const dy = Math.abs(e.clientY - touchStartY);
-  if (dx > 10 || dy > 10) {
-    touchMoved = true;
-    touchPendingFocus = false;
-  }
-});
-
-document.addEventListener("pointerup", (e) => {
-  if (e.pointerType !== "touch" || !touchPendingFocus) return;
-  if (!touchMoved) {
-    e.preventDefault();
-    setTimeout(() => {
-      focusEditorAtEnd();
-    }, 60);
-  }
-  touchPendingFocus = false;
-});
-
-function getEditorText() {
-  function extractText(node, isRoot) {
-    let text = "";
-    const children = Array.from(node.childNodes);
-    children.forEach((child, i) => {
-      const isLast = i === children.length - 1;
-      if (child.nodeType === Node.TEXT_NODE) {
-        text += child.nodeValue;
-      } else if (child.nodeName === "BR") {
-        if (isRoot && isLast) return;
-        text += "\n";
-      } else if (child.nodeName === "DIV" || child.nodeName === "P") {
-        const inner = extractText(child, false);
-        if (isRoot && isLast && inner === "") return;
-        text += "\n" + inner;
-      } else {
-        text += extractText(child, false);
-      }
-    });
-    return text;
-  }
-  return extractText(editor, true)
-    .replace(/\u00A0/g, " ")
-    .replace(/\u200B/g, "");
-}
-
-function setEditorText(text) {
-  editor.innerText = text;
-}
-
-function focusEditorAtEnd() {
+// ============================================================
+// Funciones mejoradas: scroll suave, foco y extracción de texto
+// ============================================================
+function focusEditorOnly() {
   editor.focus();
   const sel = window.getSelection();
   if (!sel) return;
+
+  if (editor.childNodes.length === 0) {
+    editor.appendChild(document.createTextNode(""));
+  }
+
   const range = document.createRange();
   range.selectNodeContents(editor);
   range.collapse(false);
   sel.removeAllRanges();
   sel.addRange(range);
-  requestAnimationFrame(() => {
-    if (editor.scrollIntoView) {
-      editor.scrollIntoView({
-        block: "center",
-        inline: "nearest",
-        behavior: "smooth",
-      });
-    }
-  });
+}
+
+function scrollToEditorAndFocus() {
+  const rect = editor.getBoundingClientRect();
+  const vh = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+  const editorVisible = rect.bottom > 0 && rect.top < vh;
+
+  if (editorVisible) {
+    focusEditorOnly();
+    return;
+  }
+
+  editor.scrollIntoView({ block: "center", behavior: "smooth" });
+  setTimeout(() => {
+    focusEditorOnly();
+    editor.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 400);
+}
+
+function getEditorText() {
+  // Usamos textContent para obtener el texto crudo, incluyendo espacios y saltos de línea exactos
+  let text = editor.textContent || "";
+  // Solo eliminamos caracteres especiales no deseados (espacio duro, zero-width space)
+  text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+  // No hacemos ningún otro reemplazo ni normalización
+  return text;
+}
+
+function setEditorText(text) {
+  editor.innerHTML = "";
+  if (text) {
+    editor.appendChild(document.createTextNode(text));
+  }
 }
 
 function updateHeight() {
@@ -414,7 +329,6 @@ async function guardar(mensaje) {
         saveLocalMessages(localRows);
       }
       setCanvasImage(true);
-      // Sonido de confirmación
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const o = ctx.createOscillator();
@@ -462,12 +376,10 @@ function insertTextAtCursor(text) {
   scrollToCaret();
 }
 
-// Init canvas with random image on load
 setCanvasImage(false).then(() => {
   mostrarHint();
 });
 
-// Handle canvas click: unificado con confirmar()
 btnCanvas.addEventListener(
   "touchend",
   (e) => {
@@ -488,12 +400,10 @@ async function confirmar() {
   if (guardando) return;
 
   let mensaje = getEditorText();
-  const hayTexto = !!mensaje.trim();
+  const hayTextoSignificativo = /\S/.test(mensaje);
 
-  if (!hayTexto) {
-    if (!estaAlFinal()) {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-    }
+  if (!hayTextoSignificativo) {
+    scrollToEditorAndFocus();
     return;
   }
 
@@ -504,13 +414,9 @@ async function confirmar() {
   const editorVisible = rect.bottom > 0 && rect.top < vh;
 
   if (!editorVisible) {
-    editor.scrollIntoView({ block: "center", behavior: "smooth" });
-    setTimeout(() => focusEditorAtEnd(), 300);
+    scrollToEditorAndFocus();
     return;
   }
-
-  mensaje = mensaje.replace(/\n+$/, "");
-  if (!mensaje.trim()) return;
 
   const mensajeLimpio = mensaje.trim().toLowerCase();
 
@@ -518,33 +424,32 @@ async function confirmar() {
     setEditorText("");
     editor.style.color = TEXTO_COLOR;
     updateHeight();
-    focusEditorAtEnd();
+    scrollToEditorAndFocus();
     return;
   }
 
+  // No normalizar saltos de línea, respetar lo que escribió el usuario
   guardando = true;
   setEditorText("");
   editor.style.color = TEXTO_COLOR;
   updateHeight();
-  focusEditorAtEnd();
+  scrollToEditorAndFocus();
   guardar(mensaje).finally(() => {
     guardando = false;
   });
 }
 
 const COMANDO_COLOR = "#7b1fa2";
-
 const TEXTO_COLOR = "rgba(0, 0, 0, 0.65)";
 
 function actualizarColorEditor() {
   const texto = getEditorText().trim().toLowerCase();
-
   const esComandoOPrefijo =
     texto.startsWith("/") &&
     Object.keys(COMANDOS).some((cmd) => cmd.startsWith(texto));
-
   editor.style.color = esComandoOPrefijo ? COMANDO_COLOR : TEXTO_COLOR;
 }
+
 editor.addEventListener("input", () => {
   updateHeight();
   scrollToCaret();
@@ -555,13 +460,7 @@ editor.addEventListener("focus", () => {
   setTimeout(() => {
     updateHeight();
     scrollToCaret();
-    if (editor.scrollIntoView) {
-      editor.scrollIntoView({
-        block: "center",
-        inline: "nearest",
-        behavior: "smooth",
-      });
-    }
+    editor.scrollIntoView({ block: "center", behavior: "smooth" });
   }, 200);
 });
 
@@ -570,13 +469,7 @@ editor.addEventListener("touchend", () => {
     setTimeout(() => {
       updateHeight();
       scrollToCaret();
-      if (editor.scrollIntoView) {
-        editor.scrollIntoView({
-          block: "center",
-          inline: "nearest",
-          behavior: "smooth",
-        });
-      }
+      editor.scrollIntoView({ block: "center", behavior: "smooth" });
     }, 150);
   }
 });
@@ -590,8 +483,6 @@ editor.addEventListener("keydown", (e) => {
     e.preventDefault();
     animarYConfirmar();
   }
-
-  // Atajos de formato: Ctrl/Cmd + B / I / U
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
     const formatMap = { b: ["**", "**"], i: ["*", "*"], u: ["__", "__"] };
     const fmt = formatMap[e.key.toLowerCase()];
@@ -607,22 +498,17 @@ function aplicarFormato(abre, cierra) {
   if (!sel || sel.rangeCount === 0) return;
   const range = sel.getRangeAt(0);
   const textoSeleccionado = range.toString();
-
   if (textoSeleccionado) {
-    // Hay selección: envolver con las marcas
     range.deleteContents();
     const nodo = document.createTextNode(abre + textoSeleccionado + cierra);
     range.insertNode(nodo);
-    // Mover cursor al final
     range.setStartAfter(nodo);
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
   } else {
-    // Sin selección: insertar marcas y poner cursor en el medio
     const marcas = document.createTextNode(abre + cierra);
     range.insertNode(marcas);
-    // Posicionar cursor entre abre y cierra
     const newRange = document.createRange();
     newRange.setStart(marcas, abre.length);
     newRange.collapse(true);
@@ -656,7 +542,6 @@ async function cargar() {
   const hoy = fechaHoy();
   const localRows = loadLocalMessages();
 
-  // Mostrar solo los de hoy desde caché mientras llega Supabase
   if (localRows.length) {
     const localHoy = localRows.filter(
       (r) => (r.fecha || "").slice(0, 10) === hoy,
@@ -668,7 +553,6 @@ async function cargar() {
       agregarMensaje(r.color || "#000", r.mensaje, r.id, r.fecha);
     });
     if (localHoy.length) fechaMasAntigua = hoy;
-    // ¿Hay historia anterior en caché?
     const hayAntes = localRows.some((r) => (r.fecha || "").slice(0, 10) < hoy);
     hasMasHistoria = hayAntes;
     setStatus("cargando desde caché...", "#888");
@@ -698,13 +582,11 @@ async function cargar() {
       });
       if (rows.length) fechaMasAntigua = hoy;
 
-      // Actualizar caché: reemplazar los de hoy y conservar el resto
       const sinHoy = localRows.filter(
         (r) => (r.fecha || "").slice(0, 10) !== hoy,
       );
       saveLocalMessages([...sinHoy, ...rows]);
 
-      // Verificar si hay historia anterior en Supabase
       const resPrev = await fetch(
         SUPABASE_URL +
           "/rest/v1/notas?select=fecha&fecha=lt." +
@@ -727,9 +609,9 @@ async function cargar() {
       requestAnimationFrame(() => {
         window.scrollTo({
           top: document.body.scrollHeight,
-          behavior: "instant",
+          behavior: "smooth",
         });
-        focusEditorAtEnd();
+        scrollToEditorAndFocus();
       });
     } else {
       const txt = await res.text();
@@ -737,7 +619,6 @@ async function cargar() {
     }
   } catch (e) {
     console.error(e);
-    // Offline: mostrar caché de hoy
     if (localRows.length > 0) {
       const localHoy = localRows.filter(
         (r) => (r.fecha || "").slice(0, 10) === hoy,
