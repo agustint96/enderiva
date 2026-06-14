@@ -533,16 +533,18 @@ async function confirmar() {
 }
 
 const COMANDO_COLOR = "#7b1fa2";
+
 const TEXTO_COLOR = "rgba(0, 0, 0, 0.65)";
 
 function actualizarColorEditor() {
   const texto = getEditorText().trim().toLowerCase();
+
   const esComandoOPrefijo =
     texto.startsWith("/") &&
     Object.keys(COMANDOS).some((cmd) => cmd.startsWith(texto));
+
   editor.style.color = esComandoOPrefijo ? COMANDO_COLOR : TEXTO_COLOR;
 }
-
 editor.addEventListener("input", () => {
   updateHeight();
   scrollToCaret();

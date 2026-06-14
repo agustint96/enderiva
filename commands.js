@@ -14,6 +14,7 @@ export const COMANDOS = {
   "/brunomunari": null,
   "/pajarosvolando": null,
   "/penales": null,
+  "/ojoporojo": null,
 };
 
 // ========================
@@ -21,67 +22,111 @@ export const COMANDOS = {
 // ========================
 
 function girarTexto() {
-  // Inyectar keyframe si no existe
-  if (!document.getElementById("spin-keyframe")) {
-    const style = document.createElement("style");
-    style.id = "spin-keyframe";
-    style.textContent = `
-      @keyframes spinLetter {
-        0%   { display: inline-block; transform: rotate(0deg); }
-        100% { display: inline-block; transform: rotate(2880deg); }
-      }
-      .spin-letter {
-        display: inline-block;
-        animation: spinLetter 4s ease-in-out forwards;
-      }
-    `;
-    document.head.appendChild(style);
-  }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
 
-  // Envolver cada caracter visible en un span animado
-  function envolverTexto(nodo) {
+  const cvs = document.createElement("canvas");
+  cvs.style.cssText =
+    "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;";
+  cvs.width = vw;
+  cvs.height = vh;
+  document.body.appendChild(cvs);
+  const cx = cvs.getContext("2d");
+
+  // Recolectar palabras en coordenadas absolutas
+  const words = [];
+
+  function recolectar(nodo) {
     if (nodo.nodeType === Node.TEXT_NODE) {
       const texto = nodo.nodeValue;
-      if (!texto) return;
-      const frag = document.createDocumentFragment();
-      for (const char of texto) {
-        if (char === "\n") {
-          frag.appendChild(document.createTextNode("\n"));
-        } else {
-          const span = document.createElement("span");
-          span.className = "spin-letter";
-          span.style.animationDelay = (Math.random() * 0.6).toFixed(3) + "s";
-          span.textContent = char;
-          frag.appendChild(span);
+      if (!texto || !texto.trim()) return;
+      // Dividir en palabras preservando índices
+      const regex = /\S+/g;
+      let match;
+      while ((match = regex.exec(texto)) !== null) {
+        const range = document.createRange();
+        range.setStart(nodo, match.index);
+        range.setEnd(nodo, match.index + match[0].length);
+        const rect = range.getBoundingClientRect();
+        if (rect.width > 0) {
+          words.push({
+            text: match[0],
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2 + window.scrollY,
+            size: rect.height * 0.85,
+            delay: Math.random() * 300,
+          });
         }
       }
-      nodo.parentNode.replaceChild(frag, nodo);
     } else if (
       nodo.nodeType === Node.ELEMENT_NODE &&
       nodo.nodeName !== "SCRIPT" &&
       nodo.nodeName !== "STYLE"
     ) {
-      Array.from(nodo.childNodes).forEach(envolverTexto);
+      Array.from(nodo.childNodes).forEach(recolectar);
     }
   }
 
-  envolverTexto(committedEl);
-  envolverTexto(editor);
+  recolectar(committedEl);
+  recolectar(editor);
 
-  // 4000ms duración + 600ms delay máximo + 200ms margen
-  setTimeout(
-    () => {
-      document.querySelectorAll(".spin-letter").forEach((span) => {
-        const txt = document.createTextNode(span.textContent);
-        span.parentNode.replaceChild(txt, span);
-      });
-      committedEl.normalize();
-      editor.normalize();
-    },
-    4000 + 600 + 200,
-  );
+  if (!words.length) {
+    cvs.remove();
+    return;
+  }
+
+  committedEl.style.visibility = "hidden";
+  editor.style.visibility = "hidden";
+
+  const VUELTAS = 3;
+  const DURACION = 2000;
+  const startTs = performance.now();
+  let animId;
+
+  function loop(ts) {
+    const elapsed = ts - startTs;
+    const scrollY = window.scrollY;
+    cx.clearRect(0, 0, vw, vh);
+
+    let todas_listas = true;
+
+    words.forEach((w) => {
+      const t = Math.max(0, elapsed - w.delay);
+      const progress = Math.min(t / DURACION, 1);
+      if (progress < 1) todas_listas = false;
+
+      const screenY = w.y - scrollY;
+      if (screenY < -100 || screenY > vh + 100) return;
+
+      const ease =
+        progress < 0.5
+          ? 2 * progress * progress
+          : -1 + (4 - 2 * progress) * progress;
+
+      const angle = ease * Math.PI * 2 * VUELTAS;
+
+      cx.save();
+      cx.translate(w.x, screenY);
+      cx.rotate(angle);
+      cx.font = `${w.size}px system-ui, sans-serif`;
+      cx.fillStyle = "#000";
+      cx.textAlign = "center";
+      cx.textBaseline = "middle";
+      cx.fillText(w.text, 0, 0);
+      cx.restore();
+    });
+
+    if (!todas_listas || elapsed < DURACION + 300) {
+      animId = requestAnimationFrame(loop);
+    } else {
+      committedEl.style.visibility = "";
+      editor.style.visibility = "";
+      cvs.remove();
+    }
+  }
+
+  animId = requestAnimationFrame(loop);
 }
-
 // ========================
 // /brunomunari
 // ========================
@@ -951,6 +996,60 @@ function superPenales86() {
 }
 
 // ========================
+// /ojoporojo
+// ========================
+
+function ojoPoroJo() {
+  // Cancelar animaciones previas del canvas
+  if (btnCanvas._munariAnimId) {
+    cancelAnimationFrame(btnCanvas._munariAnimId);
+    btnCanvas._munariAnimId = null;
+  }
+  if (btnCanvas._munariCleanup) {
+    btnCanvas._munariCleanup();
+    btnCanvas._munariCleanup = null;
+  }
+  if (btnCanvas._penalesAnimId) {
+    cancelAnimationFrame(btnCanvas._penalesAnimId);
+    btnCanvas._penalesAnimId = null;
+  }
+
+  // Aplicar blur a la página
+  const page = document.getElementById("page");
+  const status = document.getElementById("status");
+  const hint = document.getElementById("btn-hint");
+  [page, status, hint].forEach((el) => {
+    if (el) el.style.filter = "blur(6px)";
+  });
+
+  // Cargar imagen en el canvas del botón
+  const img = new Image();
+  img.onload = () => {
+    const w = btnCanvas.width;
+    const h = btnCanvas.height;
+    const canvasCtx = btnCanvas.getContext("2d");
+    canvasCtx.clearRect(0, 0, w, h);
+    canvasCtx.drawImage(img, 0, 0, w, h);
+  };
+  img.src = "img/lenteporlente.png";
+
+  // Al tocar el botón de nuevo, sacar blur y restaurar imagen normal
+  function quitarBlur() {
+    [page, status, hint].forEach((el) => {
+      if (el) el.style.filter = "";
+    });
+    import("./canvas-button.js").then(({ setCanvasImage }) => {
+      setCanvasImage(false);
+    });
+    btnCanvas.removeEventListener("click", quitarBlur);
+    btnCanvas.removeEventListener("touchend", quitarBlur);
+  }
+
+  btnCanvas.addEventListener("click", quitarBlur);
+  btnCanvas.addEventListener("touchend", quitarBlur, { passive: true });
+}
+
+// ========================
 // HINTS
 // ========================
 
@@ -1055,6 +1154,8 @@ export function ejecutarComando(mensajeLimpio) {
     pajarosVolando();
   } else if (mensajeLimpio === "/penales") {
     superPenales86();
+  } else if (mensajeLimpio === "/ojoporojo") {
+    ojoPoroJo();
   } else if (COMANDOS[mensajeLimpio]) {
     mostrarHintPersonalizado(COMANDOS[mensajeLimpio]);
   }
