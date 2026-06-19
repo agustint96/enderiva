@@ -59,12 +59,56 @@ const CANVAS_IMAGES = [
   "img/wachin.jpg",
   "img/zorritos.jpg",
   "img/francellayfatiga.png",
+  "img/bob.gif",
 ];
 
 const CANVAS_IMAGE_KEY = "naim_canvas_image_index";
 const _savedIdx = parseInt(localStorage.getItem(CANVAS_IMAGE_KEY) ?? "-1", 10);
 let currentCanvasImageIndex = -1;
 let canvasImagesLoaded = {};
+let _gifAnimId = null;
+
+// Contenedor oculto en el DOM para que el browser anime los GIFs
+const _gifHolder = document.createElement("div");
+_gifHolder.style.cssText =
+  "position:fixed;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;";
+document.body.appendChild(_gifHolder);
+
+function isGif(src) {
+  return src.toLowerCase().endsWith(".gif");
+}
+
+function stopGifLoop() {
+  if (_gifAnimId !== null) {
+    cancelAnimationFrame(_gifAnimId);
+    _gifAnimId = null;
+  }
+  // Sacar cualquier img viva del holder
+  _gifHolder.innerHTML = "";
+}
+
+function startGifLoop(src) {
+  stopGifLoop();
+
+  // Crear un <img> DENTRO DEL DOM para que el browser lo anime de verdad
+  const liveImg = document.createElement("img");
+  liveImg.src = src;
+  liveImg.style.cssText = `width:${btnCanvas.width}px;height:${btnCanvas.height}px;`;
+  _gifHolder.appendChild(liveImg);
+
+  const w = btnCanvas.width;
+  const h = btnCanvas.height;
+
+  function frame() {
+    if (liveImg.complete && liveImg.naturalWidth > 0) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(liveImg, 0, 0, w, h);
+    }
+    _gifAnimId = requestAnimationFrame(frame);
+  }
+
+  _gifAnimId = requestAnimationFrame(frame);
+}
 
 function loadCanvasImage(src) {
   if (canvasImagesLoaded[src]) return Promise.resolve(canvasImagesLoaded[src]);
@@ -79,14 +123,14 @@ function loadCanvasImage(src) {
   });
 }
 
-function drawCanvasImage(img) {
+function drawCanvasImage(img, src) {
   const w = btnCanvas.width;
   const h = btnCanvas.height;
-  ctx.clearRect(0, 0, w, h);
-  if (img) {
-    ctx.drawImage(img, 0, 0, w, h);
-  } else {
-    // Fallback: draw a simple arrow icon
+
+  stopGifLoop();
+
+  if (!img) {
+    ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = "#f0f0f0";
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "#888";
@@ -94,6 +138,14 @@ function drawCanvasImage(img) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("↓", w / 2, h / 2);
+    return;
+  }
+
+  if (isGif(src)) {
+    startGifLoop(src);
+  } else {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
   }
 }
 
@@ -107,7 +159,6 @@ function pickRandomImageIndex(exclude) {
 }
 
 export async function setCanvasImage(forceNew) {
-  // Cancelar animación Munari si estaba activa
   if (btnCanvas._munariAnimId) {
     cancelAnimationFrame(btnCanvas._munariAnimId);
     btnCanvas._munariAnimId = null;
@@ -116,6 +167,9 @@ export async function setCanvasImage(forceNew) {
     btnCanvas._munariCleanup();
     btnCanvas._munariCleanup = null;
   }
+
+  stopGifLoop();
+
   const newIdx = forceNew
     ? pickRandomImageIndex(currentCanvasImageIndex)
     : pickRandomImageIndex(_savedIdx);
@@ -123,5 +177,5 @@ export async function setCanvasImage(forceNew) {
   localStorage.setItem(CANVAS_IMAGE_KEY, String(newIdx));
   const src = CANVAS_IMAGES[newIdx];
   const img = await loadCanvasImage(src);
-  drawCanvasImage(img);
+  drawCanvasImage(img, src);
 }

@@ -1,9 +1,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { committedEl, editor, statusEl, btnCanvas } from "./dom.js";
+import {
+  committedEl,
+  editor,
+  statusEl,
+  btnCanvas,
+  btnMiniBubble,
+  btnMiniInput,
+} from "./dom.js";
 import { setCanvasImage } from "./canvas-button.js";
 import { renderConLinks } from "./embeds.js";
-import { COMANDOS, ejecutarComando, mostrarHint } from "./commands.js";
+import {
+  COMANDOS,
+  ejecutarComando,
+  mostrarHint,
+  mostrarHintPersonalizado,
+} from "./commands.js";
+import "./whiteboard.js";
+import "./text-toolbar.js";
 
 const ENV = "dev"; // ← cambiá esto: "prod" o "dev"
 const TABLE = ENV === "prod" ? "notas" : "notas_dev";
@@ -135,10 +149,10 @@ function fechaAnterior(isoDate) {
   return dt.toISOString().slice(0, 10);
 }
 
-async function cargarDiaAnterior() {
+async function cargarDiaAnterior(diaExacto) {
   if (cargandoHistoria || !hasMasHistoria || !fechaMasAntigua) return;
   cargandoHistoria = true;
-  const diaAPedir = fechaAnterior(fechaMasAntigua);
+  const diaAPedir = diaExacto || fechaAnterior(fechaMasAntigua);
   setStatus("cargando historia...", "#aaa");
   await new Promise((r) => setTimeout(r, 380));
 
@@ -183,7 +197,7 @@ async function cargarDiaAnterior() {
           } else {
             fechaMasAntigua = prevRows[0].fecha.slice(0, 10);
             cargandoHistoria = false;
-            await cargarDiaAnterior();
+            await cargarDiaAnterior(fechaMasAntigua);
             return;
           }
         } else {
@@ -258,6 +272,150 @@ function scrollToEditorAndFocus() {
     editor.scrollIntoView({ block: "center", behavior: "smooth" });
   }, 400);
 }
+
+function isEditorVisible() {
+  const rect = editor.getBoundingClientRect();
+  const vh = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+  return rect.bottom > 0 && rect.top < vh;
+}
+
+function isHintActive() {
+  const hintEl = document.getElementById("btn-hint");
+  if (!hintEl || hintEl.style.display === "none") return false;
+  return (
+    hintEl.classList.contains("hint-visible") ||
+    hintEl.classList.contains("hint-hiding") ||
+    parseFloat(getComputedStyle(hintEl).opacity) > 0
+  );
+}
+
+function isCanvasAnimating() {
+  return !!(btnCanvas._munariAnimId || btnCanvas._penalesAnimId);
+}
+
+function showMiniWriteBubble() {
+  if (!btnMiniBubble || !btnMiniInput) return;
+  if (isHintActive()) return;
+  if (isEditorVisible()) return;
+  if (isCanvasAnimating()) return;
+  btnMiniBubble.classList.remove("mini-hiding");
+  btnMiniBubble.classList.add("mini-visible");
+  btnMiniBubble.style.opacity = "1";
+  btnMiniBubble.style.pointerEvents = "auto";
+  btnMiniInput.value = "";
+  btnMiniInput.style.height = "";
+  btnMiniInput.style.color = "";
+}
+
+function hideMiniWriteBubble() {
+  if (!btnMiniBubble || !btnMiniInput) return;
+  btnMiniBubble.classList.add("mini-hiding");
+  btnMiniBubble.classList.remove("mini-visible");
+  btnMiniBubble.style.opacity = "";
+  btnMiniBubble.style.pointerEvents = "";
+  btnMiniInput.blur();
+}
+
+function actualizarVisibilidadMini() {
+  if (isHintActive()) {
+    hideMiniWriteBubble();
+    return;
+  }
+  if (isCanvasAnimating()) {
+    hideMiniWriteBubble();
+    return;
+  }
+  if (isEditorVisible()) {
+    hideMiniWriteBubble();
+  } else {
+    showMiniWriteBubble();
+  }
+}
+
+const COMANDO_COLOR_MINI = "#7b1fa2";
+
+function actualizarColorMini() {
+  if (!btnMiniInput) return;
+  const texto = btnMiniInput.value.trim().toLowerCase();
+  const esComando =
+    texto.startsWith("/") &&
+    Object.keys(COMANDOS).some((cmd) => cmd.startsWith(texto));
+  btnMiniInput.style.color = esComando ? COMANDO_COLOR_MINI : "";
+}
+
+function redirectMiniBubbleToEditor(textoInicial) {
+  hideMiniWriteBubble();
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  setTimeout(() => {
+    scrollToEditorAndFocus();
+    if (textoInicial) {
+      setEditorText(textoInicial);
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      updateHeight();
+      actualizarColorEditor();
+    }
+  }, 180);
+}
+
+async function ejecutarDesdeMini() {
+  const texto = btnMiniInput.value.trim();
+  if (!texto) return;
+  const mensajeLimpio = texto.toLowerCase();
+  hideMiniWriteBubble();
+  if (ejecutarComando(mensajeLimpio)) return;
+  guardando = true;
+  guardar(texto).finally(() => {
+    guardando = false;
+  });
+}
+
+if (btnMiniInput) {
+  btnMiniInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      ejecutarDesdeMini();
+      return;
+    }
+    if (e.key === " ") {
+      e.preventDefault();
+      redirectMiniBubbleToEditor(btnMiniInput.value);
+    }
+  });
+
+  btnMiniInput.addEventListener("beforeinput", (e) => {
+    if (e.data === " ") {
+      e.preventDefault();
+      redirectMiniBubbleToEditor(btnMiniInput.value);
+    }
+  });
+
+  btnMiniInput.addEventListener("input", () => {
+    btnMiniInput.style.height = "auto";
+    btnMiniInput.style.height = `${Math.min(btnMiniInput.scrollHeight, 72)}px`;
+    if (btnMiniInput.value.includes(" ")) {
+      const textoSinEspacio = btnMiniInput.value.replace(/\s+/g, "");
+      btnMiniInput.value = "";
+      redirectMiniBubbleToEditor(textoSinEspacio);
+      return;
+    }
+    actualizarColorMini();
+  });
+}
+
+window.addEventListener("scroll", actualizarVisibilidadMini, { passive: true });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", actualizarVisibilidadMini);
+}
+window.addEventListener("btn-hint-finished", actualizarVisibilidadMini);
 
 function getEditorText() {
   // Usamos textContent para obtener el texto crudo, incluyendo espacios y saltos de línea exactos
@@ -618,10 +776,14 @@ async function cargar() {
       if (resPrev.ok) {
         const prevRows = await resPrev.json();
         hasMasHistoria = prevRows.length > 0;
-        if (hasMasHistoria && !fechaMasAntigua) fechaMasAntigua = hoy;
+        if (hasMasHistoria && !fechaMasAntigua)
+          fechaMasAntigua = prevRows[0].fecha.slice(0, 10);
       }
 
       setStatus("", "");
+      if (!rows.length && hasMasHistoria) {
+        await cargarDiaAnterior(fechaMasAntigua);
+      }
       requestAnimationFrame(() => {
         window.scrollTo({
           top: document.body.scrollHeight,
@@ -702,3 +864,53 @@ cargar().then(() => {
     statusEl.style.color = "#e67e00";
   }
 });
+
+// ========================
+// TIP AUTOMÁTICO POR INACTIVIDAD
+// ========================
+// Aparece después de 90 segundos en la página, pero solo a veces (40% de probabilidad),
+// pensado para quien está hace rato sin saber qué escribir.
+
+(function () {
+  const TIP_IDLE_KEY = "naim_tip_idle_shown_today";
+  const hoy = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
+
+  // No mostrar más de una vez por día
+  if (localStorage.getItem(TIP_IDLE_KEY) === hoy) return;
+
+  // 40% de probabilidad — no siempre
+  if (Math.random() > 0.4) return;
+
+  let idleTimer = null;
+
+  function arrancarTimer() {
+    idleTimer = setTimeout(() => {
+      // Solo mostrar si el editor está vacío (no está escribiendo)
+      const texto = editor.textContent.trim();
+      if (texto.length > 0) return;
+
+      localStorage.setItem(TIP_IDLE_KEY, hoy);
+      mostrarHintPersonalizado(
+        'Probá guardando <span style="color:#7b1fa2">/tip</span>',
+      );
+    }, 90_000); // 1 minuto y medio
+  }
+
+  // Si el onboarding ya terminó en una sesión anterior, arrancar directo.
+  // Si todavía está corriendo, esperar a que termine.
+  const ONBOARDING_DONE_KEY = "naim_onboarding_done";
+  if (localStorage.getItem(ONBOARDING_DONE_KEY)) {
+    arrancarTimer();
+  } else {
+    window.addEventListener(
+      "btn-hint-finished",
+      () => {
+        localStorage.setItem(ONBOARDING_DONE_KEY, "1");
+        arrancarTimer();
+      },
+      { once: true },
+    );
+  }
+})();
