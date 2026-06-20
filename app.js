@@ -8,7 +8,7 @@ import {
   btnMiniBubble,
   btnMiniInput,
 } from "./dom.js";
-import { setCanvasImage } from "./canvas-button.js";
+import { setCanvasImage, loadInitialCanvasImage } from "./canvas-button.js";
 import { renderConLinks } from "./embeds.js";
 import {
   COMANDOS,
@@ -17,9 +17,10 @@ import {
   mostrarHintPersonalizado,
 } from "./commands.js";
 import "./whiteboard.js";
+import { getWhiteboardThumbnail, clearWhiteboard } from "./whiteboard.js";
 import "./text-toolbar.js";
 
-const ENV = "dev"; // ← cambiá esto: "prod" o "dev"
+const ENV = "dev";
 const TABLE = ENV === "prod" ? "notas" : "notas_dev";
 
 if (ENV === "dev") {
@@ -418,11 +419,8 @@ if (window.visualViewport) {
 window.addEventListener("btn-hint-finished", actualizarVisibilidadMini);
 
 function getEditorText() {
-  // Usamos textContent para obtener el texto crudo, incluyendo espacios y saltos de línea exactos
   let text = editor.textContent || "";
-  // Solo eliminamos caracteres especiales no deseados (espacio duro, zero-width space)
   text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-  // No hacemos ningún otro reemplazo ni normalización
   return text;
 }
 
@@ -434,8 +432,9 @@ function setEditorText(text) {
 }
 
 function updateHeight() {
-  const editorPage = document.getElementById("page");
-  document.body.style.minHeight = editorPage.offsetHeight + 120 + "px";
+  // No se fija minHeight en px duros sobre body para evitar saltos de layout
+  // durante el scroll rápido. El body ya tiene min-height: 100dvh en CSS
+  // y #page crece naturalmente con su contenido.
 }
 
 function scrollToCaret() {
@@ -473,7 +472,7 @@ async function guardar(mensaje) {
   const hora = now.toTimeString().slice(0, 8);
 
   try {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/" + TABLE, {
+    const response = await fetch(SUPABASE_URL + "/rest/v1/" + TABLE, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -488,45 +487,56 @@ async function guardar(mensaje) {
         color: colorSesion,
       }),
     });
-    if (res.ok) {
-      const rows = await res.json();
-      const id = rows?.[0]?.id;
-      const fecha = rows?.[0]?.fecha;
-      agregarMensaje(colorSesion, mensaje, id, fecha);
-      const localRows = loadLocalMessages();
-      if (id && !localRows.some((item) => item.id === id)) {
-        localRows.push({ id, mensaje, color: colorSesion, fecha: fecha });
-        saveLocalMessages(localRows);
-      }
-      setCanvasImage(true);
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.type = "sawtooth";
-        o.frequency.setValueAtTime(1320, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
-        g.gain.setValueAtTime(0.18, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        o.start(ctx.currentTime);
-        o.stop(ctx.currentTime + 0.35);
-      } catch (e) {}
-      return id || null;
-    } else {
-      const txt = await res.text();
-      setStatus("✗ error: " + txt, "#e53935");
-      console.error(txt);
-      return null;
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error guardando mensaje:", response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
-  } catch (e) {
-    setStatus("✗ sin conexión. El mensaje se guarda localmente.", "#e53935");
+
+    const rows = await response.json();
+    const id = rows?.[0]?.id;
+    const fechaGuardada = rows?.[0]?.fecha || fecha;
+
+    agregarMensaje(colorSesion, mensaje, id, fechaGuardada);
+
     const localRows = loadLocalMessages();
-    localRows.push({ id: Date.now(), mensaje, color: colorSesion });
+    if (id && !localRows.some((item) => item.id === id)) {
+      localRows.push({ id, mensaje, color: colorSesion, fecha: fechaGuardada });
+      saveLocalMessages(localRows);
+    }
+
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(1320, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+
+    return id || null;
+  } catch (e) {
+    console.error("Error guardando mensaje:", e);
+    setStatus("✗ sin conexión. El mensaje se guarda localmente.", "#e53935");
+
+    const localRows = loadLocalMessages();
+    const id = Date.now();
+    localRows.push({
+      id,
+      mensaje,
+      color: colorSesion,
+      fecha: fecha,
+    });
     saveLocalMessages(localRows);
-    agregarMensaje(colorSesion, mensaje);
-    console.error(e);
+    agregarMensaje(colorSesion, mensaje, id, fecha);
+
     return null;
   }
 }
@@ -546,7 +556,7 @@ function insertTextAtCursor(text) {
   scrollToCaret();
 }
 
-setCanvasImage(false).then(() => {
+loadInitialCanvasImage().then(() => {
   mostrarHint();
 });
 
@@ -598,7 +608,6 @@ async function confirmar() {
     return;
   }
 
-  // No normalizar saltos de línea, respetar lo que escribió el usuario
   guardando = true;
   setEditorText("");
   editor.style.color = TEXTO_COLOR;
@@ -868,8 +877,6 @@ cargar().then(() => {
 // ========================
 // TIP AUTOMÁTICO POR INACTIVIDAD
 // ========================
-// Aparece después de 90 segundos en la página, pero solo a veces (40% de probabilidad),
-// pensado para quien está hace rato sin saber qué escribir.
 
 (function () {
   const TIP_IDLE_KEY = "naim_tip_idle_shown_today";
@@ -877,29 +884,22 @@ cargar().then(() => {
     timeZone: "America/Argentina/Buenos_Aires",
   });
 
-  // No mostrar más de una vez por día
   if (localStorage.getItem(TIP_IDLE_KEY) === hoy) return;
-
-  // 40% de probabilidad — no siempre
   if (Math.random() > 0.4) return;
 
   let idleTimer = null;
 
   function arrancarTimer() {
     idleTimer = setTimeout(() => {
-      // Solo mostrar si el editor está vacío (no está escribiendo)
       const texto = editor.textContent.trim();
       if (texto.length > 0) return;
-
       localStorage.setItem(TIP_IDLE_KEY, hoy);
       mostrarHintPersonalizado(
         'Probá guardando <span style="color:#7b1fa2">/tip</span>',
       );
-    }, 90_000); // 1 minuto y medio
+    }, 90000);
   }
 
-  // Si el onboarding ya terminó en una sesión anterior, arrancar directo.
-  // Si todavía está corriendo, esperar a que termine.
   const ONBOARDING_DONE_KEY = "naim_onboarding_done";
   if (localStorage.getItem(ONBOARDING_DONE_KEY)) {
     arrancarTimer();

@@ -1,13 +1,9 @@
 // ========================
 // TEXT TOOLBAR
 // ========================
-// Botón A sobre el lápiz → popover con B / I / U
-// Inserta marcadores de texto en el #editor
 
 import { editor } from "./dom.js";
 
-// --- Contenedor vertical (A arriba, lápiz abajo ya está en whiteboard) ---
-// Lo anclamos a la misma columna izquierda que el wb-toolbar
 const txtBtn = document.createElement("button");
 txtBtn.id = "txt-btn";
 txtBtn.title = "Formato de texto";
@@ -16,46 +12,10 @@ txtBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" 
   <line x1="9" y1="20" x2="15" y2="20"/>
   <line x1="12" y1="4" x2="12" y2="20"/>
 </svg>`;
-txtBtn.style.cssText = `
-  position: fixed;
-  bottom: calc(1.4rem + 32px + 8px);
-  left: 1rem;
-  z-index: 9998;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: #bbb;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  padding: 0;
-  transition: color 0.15s, background 0.15s;
-  -webkit-tap-highlight-color: transparent;
-`;
 document.body.appendChild(txtBtn);
 
-// --- Popover ---
 const txtPopover = document.createElement("div");
 txtPopover.id = "txt-popover";
-txtPopover.style.cssText = `
-  position: fixed;
-  z-index: 9999;
-  background: #fff;
-  border: 0.5px solid rgba(0,0,0,0.12);
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.13);
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  padding: 5px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-6px);
-  transition: opacity 0.15s, transform 0.15s;
-`;
 document.body.appendChild(txtPopover);
 
 const FORMAT_OPTIONS = [
@@ -82,35 +42,19 @@ const FORMAT_OPTIONS = [
   },
 ];
 
-// Guardamos la selección antes de que el click al botón la pierda
 let savedRange = null;
 
 FORMAT_OPTIONS.forEach(({ label, style, title, abre, cierra }) => {
   const btn = document.createElement("button");
   btn.title = title;
   btn.innerHTML = `<span style="${style}">${label}</span>`;
-  btn.style.cssText = `
-    width: 34px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: #222;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    padding: 0;
-    transition: background 0.12s;
-    -webkit-tap-highlight-color: transparent;
-  `;
+
   btn.addEventListener("mouseenter", () => {
     btn.style.background = "rgba(0,0,0,0.06)";
   });
   btn.addEventListener("mouseleave", () => {
     btn.style.background = "transparent";
   });
-
   btn.addEventListener("mousedown", (e) => {
     e.preventDefault();
   });
@@ -128,14 +72,12 @@ FORMAT_OPTIONS.forEach(({ label, style, title, abre, cierra }) => {
   txtPopover.appendChild(btn);
 });
 
-// --- Lógica de formato ---
 function aplicarFormato(abre, cierra) {
   editor.focus();
 
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
-  // Intentar restaurar la selección guardada si el editor la perdió
   let range;
   if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
     sel.removeAllRanges();
@@ -167,7 +109,6 @@ function aplicarFormato(abre, cierra) {
   savedRange = null;
 }
 
-// --- Popover open/close ---
 let popoverOpen = false;
 
 function posicionarPopover() {
@@ -211,7 +152,6 @@ function cerrarPopover() {
   txtPopover.style.transform = "translateX(-6px)";
 }
 
-// Guardar selección en cualquier mousedown global, antes de que el foco se mueva
 document.addEventListener("mousedown", (e) => {
   const sel = window.getSelection();
   if (sel && sel.rangeCount > 0) {
@@ -224,8 +164,6 @@ document.addEventListener("mousedown", (e) => {
 
 txtBtn.addEventListener("mousedown", (e) => {
   e.preventDefault();
-  // Marcamos que este mousedown fue sobre el botón para que el listener
-  // "click afuera" no lo intercepte en el mismo ciclo de eventos
   txtBtn._justPressed = true;
   setTimeout(() => {
     txtBtn._justPressed = false;
@@ -237,7 +175,6 @@ txtBtn.addEventListener("touchend", (e) => {
   popoverOpen ? cerrarPopover() : abrirPopover();
 });
 
-// Cerrar al hacer click afuera
 document.addEventListener("mousedown", (e) => {
   if (txtBtn._justPressed) return;
   if (popoverOpen && !txtPopover.contains(e.target) && e.target !== txtBtn) {
@@ -245,7 +182,6 @@ document.addEventListener("mousedown", (e) => {
   }
 });
 
-// Hover
 txtBtn.addEventListener("mouseenter", () => {
   if (!popoverOpen) txtBtn.style.color = "#555";
 });

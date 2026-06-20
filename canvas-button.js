@@ -63,12 +63,11 @@ const CANVAS_IMAGES = [
 ];
 
 const CANVAS_IMAGE_KEY = "naim_canvas_image_index";
-const _savedIdx = parseInt(localStorage.getItem(CANVAS_IMAGE_KEY) ?? "-1", 10);
 let currentCanvasImageIndex = -1;
 let canvasImagesLoaded = {};
 let _gifAnimId = null;
 
-// Contenedor oculto en el DOM para que el browser anime los GIFs
+// Contenedor oculto para GIFs
 const _gifHolder = document.createElement("div");
 _gifHolder.style.cssText =
   "position:fixed;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;";
@@ -83,14 +82,12 @@ function stopGifLoop() {
     cancelAnimationFrame(_gifAnimId);
     _gifAnimId = null;
   }
-  // Sacar cualquier img viva del holder
   _gifHolder.innerHTML = "";
 }
 
 function startGifLoop(src) {
   stopGifLoop();
 
-  // Crear un <img> DENTRO DEL DOM para que el browser lo anime de verdad
   const liveImg = document.createElement("img");
   liveImg.src = src;
   liveImg.style.cssText = `width:${btnCanvas.width}px;height:${btnCanvas.height}px;`;
@@ -159,6 +156,7 @@ function pickRandomImageIndex(exclude) {
 }
 
 export async function setCanvasImage(forceNew) {
+  // Cancelar animaciones previas
   if (btnCanvas._munariAnimId) {
     cancelAnimationFrame(btnCanvas._munariAnimId);
     btnCanvas._munariAnimId = null;
@@ -167,15 +165,50 @@ export async function setCanvasImage(forceNew) {
     btnCanvas._munariCleanup();
     btnCanvas._munariCleanup = null;
   }
+  if (btnCanvas._penalesAnimId) {
+    cancelAnimationFrame(btnCanvas._penalesAnimId);
+    btnCanvas._penalesAnimId = null;
+  }
 
   stopGifLoop();
 
-  const newIdx = forceNew
-    ? pickRandomImageIndex(currentCanvasImageIndex)
-    : pickRandomImageIndex(_savedIdx);
-  currentCanvasImageIndex = newIdx;
-  localStorage.setItem(CANVAS_IMAGE_KEY, String(newIdx));
-  const src = CANVAS_IMAGES[newIdx];
+  let savedIdx = parseInt(localStorage.getItem(CANVAS_IMAGE_KEY) ?? "-1", 10);
+
+  if (savedIdx === -1 || savedIdx >= CANVAS_IMAGES.length || forceNew) {
+    if (savedIdx === -1) {
+      currentCanvasImageIndex = Math.floor(
+        Math.random() * CANVAS_IMAGES.length,
+      );
+    } else {
+      currentCanvasImageIndex = pickRandomImageIndex(
+        forceNew ? currentCanvasImageIndex : savedIdx,
+      );
+    }
+  } else {
+    currentCanvasImageIndex = savedIdx;
+  }
+
+  localStorage.setItem(CANVAS_IMAGE_KEY, String(currentCanvasImageIndex));
+
+  const src = CANVAS_IMAGES[currentCanvasImageIndex];
+  const img = await loadCanvasImage(src);
+  drawCanvasImage(img, src);
+}
+
+export async function loadInitialCanvasImage() {
+  const savedIdx = parseInt(localStorage.getItem(CANVAS_IMAGE_KEY) ?? "-1", 10);
+
+  let idx;
+  if (savedIdx === -1 || savedIdx >= CANVAS_IMAGES.length) {
+    idx = Math.floor(Math.random() * CANVAS_IMAGES.length);
+  } else {
+    idx = savedIdx;
+  }
+
+  currentCanvasImageIndex = idx;
+  localStorage.setItem(CANVAS_IMAGE_KEY, String(idx));
+
+  const src = CANVAS_IMAGES[idx];
   const img = await loadCanvasImage(src);
   drawCanvasImage(img, src);
 }

@@ -5,22 +5,37 @@
 }
 
 body {
-  background: #fff;
+  background-color: #fff;
   font-family: system-ui, sans-serif;
   min-height: 100dvh;
   font-size: clamp(13px, 2.8vw, 16px);
-  /* Evitar scroll horizontal */
   overflow-x: hidden;
   max-width: 100vw;
 }
 
 #page {
   position: relative;
+  z-index: 2;
   min-height: 100dvh;
   width: 100%;
   padding: 1.4rem;
   padding-bottom: 6rem;
   cursor: text;
+  background-color: #fff;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* El perspective para el flip 3D solo se activa cuando es necesario */
+body.page-flip-active {
+  perspective: 1800px;
+}
+
+/* Dorso: la hoja gira y deja ver la pizarra ocupando toda la pantalla */
+#page.page-flipped {
+  transform: rotateY(180deg);
+  pointer-events: none;
 }
 
 #committed {
@@ -35,7 +50,9 @@ body {
 }
 
 #committed .msg {
-  display: inline;
+  display: block;
+  margin-bottom: 0.4em;
+  background-color: #fff;
 }
 
 #committed .msg a {
@@ -62,6 +79,7 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin: 1.8em 0 1.2em;
+  background-color: #fff;
   user-select: none;
 }
 
@@ -72,24 +90,16 @@ body {
   font-size: 1em;
   line-height: 1.7;
   color: rgba(0, 0, 0, 0.65);
+  background-color: #fff;
   outline: none;
   caret-color: auto;
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
 }
 
 #status {
   position: fixed;
   bottom: 1rem;
   left: 1.4rem;
+  z-index: 3;
   font-size: 0.8em;
   color: #aaa;
   pointer-events: none;
@@ -127,8 +137,7 @@ body {
 }
 
 /* =========================
-   CELULARES (por defecto)
-   0px - 767px
+   RESPONSIVE
 ========================= */
 #page {
   padding: 1rem;
@@ -153,29 +162,12 @@ body {
     width: auto;
   }
 
-  /* Ocultar el whiteboard en móviles */
   #wb-toolbar,
   #wb-canvas {
     display: none !important;
   }
-
-  /* Ajustar el botón "A" para que no se superponga */
-  #txt-btn {
-    left: 1rem !important;
-    right: auto !important;
-    bottom: 1.4rem !important;
-    z-index: 9998 !important;
-  }
-
-  #txt-popover {
-    z-index: 9999 !important;
-  }
 }
 
-/* =========================
-   TABLETS
-   768px - 1023px
-========================= */
 @media (min-width: 768px) {
   #page {
     max-width: 720px;
@@ -203,10 +195,6 @@ body {
   }
 }
 
-/* =========================
-   NOTEBOOKS / DESKTOP
-   1024px - 1439px
-========================= */
 @media (min-width: 1024px) {
   #page {
     max-width: 960px;
@@ -232,10 +220,6 @@ body {
   }
 }
 
-/* =========================
-   DESKTOP GRANDE
-   1440px - 1919px
-========================= */
 @media (min-width: 1440px) {
   #page {
     max-width: 1280px;
@@ -263,10 +247,6 @@ body {
   }
 }
 
-/* =========================
-   ULTRAWIDE / 2K / 4K
-   1920px+
-========================= */
 @media (min-width: 1920px) {
   #page {
     max-width: 1600px;
@@ -312,10 +292,6 @@ body {
   max-height: calc(100vh - 16px);
   resize: none;
   clip-path: none;
-}
-
-#embed-player::before {
-  display: none;
 }
 
 #embed-toolbar {
@@ -772,13 +748,216 @@ body {
 }
 
 /* ========================
-   WHITEBOARD (estilos base, solo desktop)
+   WHITEBOARD
 ======================== */
 #wb-canvas {
-  image-rendering: pixelated;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  touch-action: none;
+  background: transparent;
+}
+
+#wb-canvas.wb-active {
+  pointer-events: all !important;
+  cursor: crosshair !important;
+}
+
+#wb-toolbar {
+  position: fixed;
+  bottom: 1.4rem;
+  left: calc(1rem + 32px + 8px);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#wb-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0;
+  flex-shrink: 0;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#wb-btn:hover {
+  color: #555;
+}
+
+#wb-clear-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0;
+  flex-shrink: 0;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    opacity 0.2s;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#wb-clear-btn:hover {
+  color: #e53935;
+}
+
+#wb-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+#wb-color-picker button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#wb-color-picker button:hover {
+  transform: scale(1.1);
+}
+
+#wb-color-wheel {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+#wb-color-wheel:hover {
+  transform: scale(1.1);
+}
+
+#wb-color-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #wb-btn:active,
 #wb-clear-btn:active {
   transform: scale(0.9);
+}
+
+/* Text toolbar */
+#txt-btn {
+  position: fixed;
+  bottom: 1.4rem;
+  left: 1rem;
+  z-index: 9998;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#txt-btn:hover {
+  color: #555;
+}
+
+#txt-popover {
+  position: fixed;
+  z-index: 9999;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-6px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+
+#txt-popover button {
+  width: 34px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #222;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0;
+  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#txt-popover button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Mobile adjustments for text toolbar */
+@media (max-width: 767px) {
+  #txt-btn {
+    display: none !important;
+  }
+  #txt-popover {
+    display: none !important;
+  }
 }

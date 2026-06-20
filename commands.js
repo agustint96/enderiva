@@ -34,14 +34,12 @@ function girarTexto() {
   document.body.appendChild(cvs);
   const cx = cvs.getContext("2d");
 
-  // Recolectar palabras en coordenadas absolutas
   const words = [];
 
   function recolectar(nodo) {
     if (nodo.nodeType === Node.TEXT_NODE) {
       const texto = nodo.nodeValue;
       if (!texto || !texto.trim()) return;
-      // Dividir en palabras preservando índices
       const regex = /\S+/g;
       let match;
       while ((match = regex.exec(texto)) !== null) {
@@ -128,17 +126,16 @@ function girarTexto() {
 
   animId = requestAnimationFrame(loop);
 }
+
 // ========================
 // /brunomunari
 // ========================
 
 function mostrarBrunoMunari() {
-  // Dibuja el Munari directamente en el btnCanvas del botón
   const S = btnCanvas.width;
-  const ctx2d = ctx; // reusar el contexto del botón
+  const ctx2d = ctx;
   const sc = S / 500;
 
-  // Cancelar animación Munari previa si existe
   if (btnCanvas._munariAnimId) {
     cancelAnimationFrame(btnCanvas._munariAnimId);
     btnCanvas._munariAnimId = null;
@@ -243,8 +240,6 @@ function mostrarBrunoMunari() {
   }
 
   drawMunari();
-  // La animación queda activa hasta que el usuario toque el botón.
-  // setCanvasImage() la cancela automáticamente cuando eso ocurre.
 }
 
 // ========================
@@ -287,12 +282,10 @@ function pajarosVolando() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  // Ocultar todas desde el principio
   vSpans.forEach((span) => {
     span.style.visibility = "hidden";
   });
 
-  // Canvas fijo cubriendo el viewport
   const cvs = document.createElement("canvas");
   cvs.style.cssText =
     "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;";
@@ -304,11 +297,9 @@ function pajarosVolando() {
   const DURATION = 20000;
   const startTs = performance.now();
 
-  // Pool de pájaros activos
   const birds = [];
   const launched = new Set();
 
-  // Punto de reunión: centro-derecha del viewport actual, se recalcula por grupo
   function getGatherPoint() {
     return {
       gx: vw * 0.62 + (Math.random() - 0.5) * vw * 0.12,
@@ -316,18 +307,17 @@ function pajarosVolando() {
     };
   }
 
-  // Paleta de pasteles suaves que itera secuencialmente
   const BIRD_COLORS = [
-    "#eeebeb", // rosa
-    "#eeebeb", // celeste
-    "#eeebeb", // verde menta
-    "#eeebeb", // amarillo
-    "#eeebeb", // lila
-    "#eeebeb", // durazno
-    "#eeebeb", // turquesa claro
-    "#eeebeb", // salmón
-    "#eeebeb", // verde agua
-    "#eeebeb", // rosa chicle
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
+    "#eeebeb",
   ];
   let birdColorIndex = 0;
 
@@ -340,19 +330,18 @@ function pajarosVolando() {
       y: rect.top + rect.height / 2,
       vx: 0,
       vy: 0,
-      gx: gx + (Math.random() - 0.5) * 60, // dispersión dentro del punto
+      gx: gx + (Math.random() - 0.5) * 60,
       gy: gy + (Math.random() - 0.5) * 30,
       flapOffset: Math.random() * Math.PI * 2,
       flapSpeed: 170 + Math.random() * 60,
       size: 11 + Math.random() * 5,
       t: 0,
-      delay: groupDelay + Math.random() * 80, // pequeño escalonado dentro del grupo
-      phase: "gather", // gather → flock → done
+      delay: groupDelay + Math.random() * 80,
+      phase: "gather",
       bgColor,
     };
   }
 
-  // Lanzar un grupo de spans que acaban de entrar al viewport
   function launchGroup(spans) {
     const { gx, gy } = getGatherPoint();
     spans.forEach((span, i) => {
@@ -362,7 +351,6 @@ function pajarosVolando() {
     });
   }
 
-  // IntersectionObserver con rootMargin 0 — solo dispara cuando realmente entra
   let pendingGroup = [];
   let groupTimer = null;
 
@@ -373,7 +361,6 @@ function pajarosVolando() {
           pendingGroup.push(entry.target);
         }
       });
-      // Agrupar entradas que llegan juntas en el mismo tick del observer
       if (pendingGroup.length > 0) {
         clearTimeout(groupTimer);
         groupTimer = setTimeout(() => {
@@ -420,7 +407,6 @@ function pajarosVolando() {
       b.t += dt;
 
       if (b.phase === "gather") {
-        // Volar hacia el punto de reunión
         const dx = b.gx - b.x;
         const dy = b.gy - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -440,7 +426,6 @@ function pajarosVolando() {
           b.y += b.vy;
         }
       } else if (b.phase === "flock") {
-        // Volar hacia arriba-derecha saliendo del viewport
         const angle = -Math.PI / 4 + (Math.random() - 0.5) * 0.01;
         const targetVx = Math.cos(angle) * 4;
         const targetVy = Math.sin(angle) * 4;
@@ -453,33 +438,28 @@ function pajarosVolando() {
 
       if (b.phase === "done") return;
 
-      // Dibujar alas
       const flap = Math.sin(b.t / b.flapSpeed + b.flapOffset);
       const flapR = Math.sin(b.t / b.flapSpeed + b.flapOffset + 0.3);
       const ws = b.size;
 
-      // Ángulo de vuelo para rotar el recorte
       const angle = Math.atan2(b.vy, b.vx) || -Math.PI / 4;
 
       cx.save();
       cx.translate(b.x, b.y);
       cx.rotate(angle);
 
-      // 1. Recorte de papel: rectángulo centrado, más ancho que alto
       const rw = ws * 1.6;
       const rh = ws * 0.9;
       cx.beginPath();
       cx.roundRect(-rw / 2, -rh / 2, rw, rh, 2);
       cx.fillStyle = b.bgColor;
       cx.fill();
-      // Borde sutil para que se lea como recorte
       cx.strokeStyle = "rgba(0,0,0,0.18)";
       cx.lineWidth = 0.7;
       cx.stroke();
 
       cx.restore();
 
-      // 2. Trazo de las alas encima (en coordenadas globales, sin rotar)
       cx.save();
       cx.strokeStyle = "rgb(20,18,12)";
       cx.lineWidth = 1.5;
@@ -513,7 +493,6 @@ function pajarosVolando() {
 // ========================
 
 function superPenales86() {
-  // Cancelar animaciones previas del canvas
   if (btnCanvas._munariAnimId) {
     cancelAnimationFrame(btnCanvas._munariAnimId);
     btnCanvas._munariAnimId = null;
@@ -528,9 +507,8 @@ function superPenales86() {
   }
 
   const cx = ctx;
-  const S = btnCanvas.width; // tamaño real del canvas (px)
+  const S = btnCanvas.width;
 
-  // ── Paleta ──
   const SKY = "#1a1a3e";
   const GRASS = "#2d8a3e";
   const GRASS_DARK = "#256e32";
@@ -544,7 +522,6 @@ function superPenales86() {
   const KEEPER_SHORTS = "#1a1330";
   const SCANLINE = "rgba(0,0,0,0.12)";
 
-  // ── Estado ──
   const W = S,
     H = S;
   let score = 0;
@@ -554,8 +531,6 @@ function superPenales86() {
   let results = [];
   let gameOver = false;
 
-  // ── Geometría ──
-  // Ajustada al canvas cuadrado pequeño
   const goal = { x: W * 0.09, y: H * 0.18, w: W * 0.82, h: H * 0.3 };
   const ballStart = { x: W / 2, y: H * 0.87 };
   let ball = { x: ballStart.x, y: ballStart.y, r: W * 0.04 };
@@ -579,7 +554,6 @@ function superPenales86() {
     reaching: false,
   };
 
-  // ── Zonas 3×2 ──
   function getZones() {
     const cols = 3,
       rows = 2;
@@ -608,7 +582,6 @@ function superPenales86() {
     );
   }
 
-  // ── Helpers de dibujo ──
   function rect(x, y, w, h, color) {
     cx.fillStyle = color;
     cx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
@@ -616,7 +589,6 @@ function superPenales86() {
 
   function drawField() {
     rect(0, 0, W, goal.y + goal.h + H * 0.07, SKY);
-    // estrellas
     cx.fillStyle = "#ffe93b";
     for (let i = 0; i < 10; i++) {
       const sx = (i * 47) % W,
@@ -640,7 +612,6 @@ function superPenales86() {
           GRASS_DARK,
         );
     }
-    // punto de penal
     rect(W / 2 - 1, ballStart.y + 3, 2, 2, "#ffffff");
   }
 
@@ -660,7 +631,6 @@ function superPenales86() {
       cx.lineTo(goal.x + i - goal.h, goal.y + goal.h);
       cx.stroke();
     }
-    // postes (sombra y blanco)
     rect(goal.x - postW, goal.y - postW, postW, goal.h + postW, GOAL_SHADOW);
     rect(goal.x, goal.y - postW, goal.w, postW, GOAL_SHADOW);
     rect(goal.x + goal.w, goal.y - postW, postW, goal.h + postW, GOAL_SHADOW);
@@ -740,10 +710,8 @@ function superPenales86() {
       );
       rect(w / 2, -h / 2 + h * 0.06, w * 0.23, h * 0.41, KEEPER_SHIRT);
     }
-    // cabeza
     rect(-w * 0.27, -h / 2 - h * 0.35, w * 0.54, h * 0.35, KEEPER_SKIN);
     rect(-w * 0.27, -h / 2 - h * 0.41, w * 0.54, h * 0.12, "#222222");
-    // pies
     rect(-w / 2 + w * 0.08, h / 2 - h * 0.24, w * 0.3, h * 0.35, KEEPER_SKIN);
     rect(w / 2 - w * 0.38, h / 2 - h * 0.24, w * 0.3, h * 0.35, KEEPER_SKIN);
     cx.restore();
@@ -775,7 +743,6 @@ function superPenales86() {
     for (let y = 0; y < H; y += 3) cx.fillRect(0, y, W, 1);
   }
 
-  // ── Marcador compacto en la parte superior ──
   function drawScore() {
     const px = Math.round(W * 0.09);
     const gap = Math.round(W * 0.03);
@@ -791,7 +758,6 @@ function superPenales86() {
             : "#ff2e63"
           : "#2a2040";
       cx.fillRect(x, startY, px, px);
-      // borde
       cx.fillStyle =
         i < results.length
           ? results[i] === "gol"
@@ -814,7 +780,6 @@ function superPenales86() {
     drawScore();
   }
 
-  // ── Lógica de disparo ──
   let currentTargetZone = null;
   function animateShot(targetZone) {
     currentTargetZone = targetZone;
@@ -828,9 +793,7 @@ function superPenales86() {
     const duration = 500;
     const startTime = performance.now();
 
-    // El arquero elige aleatoriamente una de las 3 columnas (izq, centro, der)
-    const diveCol = Math.floor(Math.random() * 3); // 0=izq, 1=centro, 2=der
-    // Para la fila siempre usamos la fila de abajo (row=1) en los lados
+    const diveCol = Math.floor(Math.random() * 3);
     const diveZone = ZONES.find(
       (z) =>
         z.col === diveCol &&
@@ -849,7 +812,6 @@ function superPenales86() {
         keeper.reaching = false;
       }
     } else {
-      // Siempre animación "abajo" para izquierda/derecha
       keeper.endX = diveZone.x + diveZone.w / 2;
       keeper.endY = KEEPER_HOME_Y;
       keeper.reaching = false;
@@ -876,8 +838,6 @@ function superPenales86() {
   }
 
   function resolveShot(diveZone) {
-    // El arquero ataja si eligió la misma columna que el tiro.
-    // Para el centro (col=1) además debe coincidir la fila (arriba/abajo).
     const tz = currentTargetZone;
     let saved;
     if (diveZone.col === 1) {
@@ -920,10 +880,8 @@ function superPenales86() {
 
   function endGame() {
     gameOver = true;
-    // Pantalla de resultado breve
     const won = score >= 3;
     setTimeout(() => {
-      // Mostrar resultado encima del campo
       render();
       cx.fillStyle = "rgba(15,10,30,0.72)";
       cx.fillRect(0, H * 0.3, W, H * 0.38);
@@ -937,21 +895,17 @@ function superPenales86() {
       cx.fillText(`${score}/${MAX_SHOTS}`, W / 2, H * 0.58);
     }, 100);
 
-    // Después de 2.5 segundos, volver a la imagen normal
     setTimeout(() => {
       btnCanvas._penalesAnimId = null;
       gameOver = false;
-      // Limpiar listeners
       btnCanvas.removeEventListener("click", handleClick);
       btnCanvas.removeEventListener("touchend", handleTouch);
-      // Restaurar imagen del canvas
       import("./canvas-button.js").then(({ setCanvasImage }) => {
         setCanvasImage(false);
       });
     }, 2500);
   }
 
-  // ── Input: clic / tap sobre el canvas del botón ──
   function getCoordsFromEvent(e) {
     const r = btnCanvas.getBoundingClientRect();
     const scaleX = S / r.width,
@@ -971,7 +925,7 @@ function superPenales86() {
 
   function handleClick(e) {
     if (!canShoot || gameOver) return;
-    e.stopPropagation(); // no guardar mensaje
+    e.stopPropagation();
     const { x, y } = getCoordsFromEvent(e);
     const zone = zoneAt(x, y);
     if (zone) animateShot(zone);
@@ -989,7 +943,6 @@ function superPenales86() {
   btnCanvas.addEventListener("click", handleClick);
   btnCanvas.addEventListener("touchend", handleTouch, { passive: false });
 
-  // Arrancar
   render();
 }
 
@@ -998,7 +951,6 @@ function superPenales86() {
 // ========================
 
 function ojoPoroJo() {
-  // Cancelar animaciones previas del canvas
   if (btnCanvas._munariAnimId) {
     cancelAnimationFrame(btnCanvas._munariAnimId);
     btnCanvas._munariAnimId = null;
@@ -1012,7 +964,6 @@ function ojoPoroJo() {
     btnCanvas._penalesAnimId = null;
   }
 
-  // Aplicar blur a la página
   const page = document.getElementById("page");
   const status = document.getElementById("status");
   const hint = document.getElementById("btn-hint");
@@ -1020,7 +971,6 @@ function ojoPoroJo() {
     if (el) el.style.filter = "blur(6px)";
   });
 
-  // Cargar imagen en el canvas del botón
   const img = new Image();
   img.onload = () => {
     const w = btnCanvas.width;
@@ -1031,7 +981,6 @@ function ojoPoroJo() {
   };
   img.src = "img/lenteporlente.png";
 
-  // Al tocar el botón de nuevo, sacar blur y restaurar imagen normal
   function quitarBlur() {
     [page, status, hint].forEach((el) => {
       if (el) el.style.filter = "";
@@ -1078,7 +1027,6 @@ export function mostrarHintPersonalizado(texto) {
   }, 50);
 }
 
-// Hint de primer uso (secuencia de onboarding mostrada al cargar)
 export function mostrarHint() {
   const hintEl = document.getElementById("btn-hint");
   const hintText = document.getElementById("btn-hint-text");
@@ -1098,13 +1046,12 @@ export function mostrarHint() {
   let paso = 0;
 
   function mostrarPaso() {
-    // Fade out si ya hay algo visible
     if (paso > 0) {
       hintEl.classList.add("hint-hiding");
       hintEl.classList.remove("hint-visible");
     }
 
-    const delay = paso === 0 ? 0 : 400; // esperar fade-out antes de cambiar texto
+    const delay = paso === 0 ? 0 : 400;
     setTimeout(() => {
       hintText.innerHTML = secuencia[paso];
       hintEl.classList.remove("hint-hiding");
@@ -1117,10 +1064,8 @@ export function mostrarHint() {
       paso++;
 
       if (paso < secuencia.length) {
-        // 2 segundos visible, luego siguiente
         setTimeout(mostrarPaso, 4000);
       } else {
-        // Último mensaje (hint del botón): ocultar a los 10 segundos
         setTimeout(() => {
           hintEl.classList.add("hint-hiding");
           hintEl.classList.remove("hint-visible");
@@ -1161,8 +1106,6 @@ function mostrarTip() {
 // DESPACHO DE COMANDOS
 // ========================
 
-// Ejecuta el comando correspondiente a `mensajeLimpio` (ej: "/girar").
-// Devuelve true si era un comando válido y ya fue manejado.
 export function ejecutarComando(mensajeLimpio) {
   if (!(mensajeLimpio in COMANDOS)) return false;
 
