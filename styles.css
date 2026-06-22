@@ -27,8 +27,11 @@ body {
   transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-/* El perspective para el flip 3D solo se activa cuando es necesario */
-body.page-flip-active {
+/* El perspective para el flip 3D solo se activa cuando es necesario.
+   Va en este wrapper (y no en body) para que #wb-canvas, que es
+   position:fixed e hijo directo de body, siga anclado al viewport
+   y no al alto total del documento. */
+#page-perspective.page-flip-active {
   perspective: 1800px;
 }
 

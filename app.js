@@ -20,7 +20,7 @@ import "./whiteboard.js";
 import { getWhiteboardThumbnail, clearWhiteboard } from "./whiteboard.js";
 import "./text-toolbar.js";
 
-const ENV = "dev";
+const ENV = "prod";
 const TABLE = ENV === "prod" ? "notas" : "notas_dev";
 
 if (ENV === "dev") {

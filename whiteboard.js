@@ -39,6 +39,40 @@ if (!_isMobile) {
   document.body.appendChild(wbCanvas);
   const wbCtx = wbCanvas.getContext("2d", { willReadFrequently: true });
 
+  // --- Respaldo blanco para el giro de la hoja ---
+  // Cuando #page gira y queda casi de canto (~90°), el navegador la
+  // dibuja tan angosta por la perspectiva que el antialiasing la deja
+  // semitransparente, y se ve la pizarra (o lo que sea) a través del
+  // texto. Este panel opaco se muestra solo durante esa fracción del
+  // giro, justo detrás de #page y delante del canvas, para tapar ese
+  // efecto "fantasma". No puede ir dentro de #page-perspective: tiene
+  // que quedar fijo al viewport real, igual que el canvas.
+  const pageBacker = document.createElement("div");
+  pageBacker.id = "page-backer";
+  pageBacker.style.cssText = `
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1 !important;
+    background: #fff !important;
+    pointer-events: none !important;
+    display: none !important;
+  `;
+  document.body.appendChild(pageBacker);
+
+  let _backerTimers = [];
+  function clearBackerTimers() {
+    _backerTimers.forEach(clearTimeout);
+    _backerTimers = [];
+  }
+  function showBacker() {
+    pageBacker.style.display = "block";
+  }
+  function hideBacker() {
+    pageBacker.style.display = "none";
+  }
+
   // --- Toolbar ---
   const wbToolbar = document.createElement("div");
   wbToolbar.id = "wb-toolbar";
@@ -712,19 +746,53 @@ if (!_isMobile) {
     if (flip === pageFlipped) return;
     pageFlipped = flip;
     const pageEl = document.getElementById("page");
+    const perspectiveEl = document.getElementById("page-perspective");
+
+    // #page puede ser mucho más alta que la pantalla (crece con cada
+    // mensaje escrito). Si el giro pivotea sobre el centro de TODA la
+    // hoja, el punto de fuga queda lejos de donde el usuario está
+    // mirando y el texto se ve inclinado. Por eso centramos el eje de
+    // giro y la perspectiva en el centro del viewport actual, tomando
+    // como referencia el scroll en el momento de tocar el botón.
+    const viewCenter = window.scrollY + window.innerHeight / 2;
+    if (pageEl) pageEl.style.transformOrigin = `center ${viewCenter}px`;
+    if (perspectiveEl)
+      perspectiveEl.style.perspectiveOrigin = `center ${viewCenter}px`;
+
+    // La hoja pasa "de canto" (90°) más o menos a la mitad de la
+    // transición de 0.7s, ya que la curva cubic-bezier usada es
+    // simétrica. Mostramos el respaldo solo mientras #page está cerca
+    // de esa zona, en el lado en que sigue siendo visible (foreshortened).
+    const HALF_MS = 350;
+    clearBackerTimers();
+    if (flip) {
+      // 0° → 180°: la hoja es visible y se va angostando entre 0° y 90°.
+      showBacker();
+      _backerTimers.push(setTimeout(hideBacker, HALF_MS));
+    } else {
+      // 180° → 0°: la hoja sigue oculta hasta los 90° y recién ahí
+      // empieza a angostarse de nuevo hasta hacerse visible en 0°.
+      hideBacker();
+      _backerTimers.push(setTimeout(showBacker, HALF_MS));
+      _backerTimers.push(setTimeout(hideBacker, HALF_MS + 350));
+    }
 
     if (flip) {
       // Si ya estaba dibujando en los márgenes, lo recordamos para
       // dejarlo en el mismo estado al volver a la hoja.
       _wasActiveBeforeFlip = wbActive;
       if (!wbActive) setWbActive(true);
-      document.body.classList.add("page-flip-active");
+      document
+        .getElementById("page-perspective")
+        ?.classList.add("page-flip-active");
       if (pageEl) pageEl.classList.add("page-flipped");
       wbFlipBtn.style.color = "#111";
       wbFlipBtn.style.background = "rgba(0,0,0,0.07)";
       wbFlipBtn.title = "Volver a la hoja";
     } else {
-      document.body.classList.remove("page-flip-active");
+      document
+        .getElementById("page-perspective")
+        ?.classList.remove("page-flip-active");
       if (pageEl) pageEl.classList.remove("page-flipped");
       wbFlipBtn.style.color = "#bbb";
       wbFlipBtn.style.background = "transparent";
