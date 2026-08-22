@@ -793,7 +793,14 @@ function superPenales86() {
     const duration = 500;
     const startTime = performance.now();
 
-    const diveCol = Math.floor(Math.random() * 3);
+    // El arquero prefiere tirarse a los costados (col 0 y 2) y elige
+    // el medio (col 1) con menos frecuencia, aunque a veces sí lo hace.
+    const diveCol = (() => {
+      const r = Math.random();
+      if (r < 0.45) return 0;
+      if (r < 0.9) return 2;
+      return 1;
+    })();
     const diveZone = ZONES.find(
       (z) =>
         z.col === diveCol &&
@@ -1092,13 +1099,20 @@ const TIP_COMANDOS = [
   "/penales",
   "/ojoporojo",
 ];
-const TIP_KEY = "naim_tip_index";
+const TIP_KEY = "naim_tip_last";
 
 function mostrarTip() {
-  const idx =
-    parseInt(localStorage.getItem(TIP_KEY) ?? "0", 10) % TIP_COMANDOS.length;
+  const lastIdx = parseInt(localStorage.getItem(TIP_KEY) ?? "-1", 10);
+  let idx;
+  if (TIP_COMANDOS.length === 1) {
+    idx = 0;
+  } else {
+    do {
+      idx = Math.floor(Math.random() * TIP_COMANDOS.length);
+    } while (idx === lastIdx);
+  }
   const cmd = TIP_COMANDOS[idx];
-  localStorage.setItem(TIP_KEY, String((idx + 1) % TIP_COMANDOS.length));
+  localStorage.setItem(TIP_KEY, String(idx));
   mostrarHintPersonalizado(`Probá <span style="color:#7b1fa2">${cmd}</span>`);
 }
 
