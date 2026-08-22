@@ -196,14 +196,10 @@ export async function setCanvasImage(forceNew) {
 }
 
 export async function loadInitialCanvasImage() {
+  // Cada vez que se carga/recarga la página, se elige una imagen nueva
+  // al azar (evitando repetir la última que se vio).
   const savedIdx = parseInt(localStorage.getItem(CANVAS_IMAGE_KEY) ?? "-1", 10);
-
-  let idx;
-  if (savedIdx === -1 || savedIdx >= CANVAS_IMAGES.length) {
-    idx = Math.floor(Math.random() * CANVAS_IMAGES.length);
-  } else {
-    idx = savedIdx;
-  }
+  const idx = pickRandomImageIndex(savedIdx);
 
   currentCanvasImageIndex = idx;
   localStorage.setItem(CANVAS_IMAGE_KEY, String(idx));

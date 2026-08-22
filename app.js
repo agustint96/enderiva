@@ -613,9 +613,11 @@ async function confirmar() {
   editor.style.color = TEXTO_COLOR;
   updateHeight();
   scrollToEditorAndFocus();
-  guardar(mensaje).finally(() => {
-    guardando = false;
-  });
+  guardar(mensaje)
+    .then(() => setCanvasImage(true))
+    .finally(() => {
+      guardando = false;
+    });
 }
 
 const COMANDO_COLOR = "#7b1fa2";
@@ -716,6 +718,24 @@ function fechaHoy() {
   });
 }
 
+// Si con los mensajes de hoy la página no llega a llenar la pantalla,
+// no hay "de dónde" scrollear y el listener de scroll (que dispara
+// cargarDiaAnterior) nunca se activa. Por eso, si la página quedó más
+// corta que la ventana, traemos días anteriores a la fuerza hasta que
+// haya contenido suficiente o se acabe el historial.
+async function asegurarContenidoScrolleable() {
+  let intentos = 0;
+  while (
+    hasMasHistoria &&
+    !cargandoHistoria &&
+    document.body.scrollHeight <= window.innerHeight &&
+    intentos < 30
+  ) {
+    await cargarDiaAnterior();
+    intentos++;
+  }
+}
+
 async function cargar() {
   setStatus("cargando...", "#aaa");
   const hoy = fechaHoy();
@@ -793,6 +813,7 @@ async function cargar() {
       if (!rows.length && hasMasHistoria) {
         await cargarDiaAnterior(fechaMasAntigua);
       }
+      await asegurarContenidoScrolleable();
       requestAnimationFrame(() => {
         window.scrollTo({
           top: document.body.scrollHeight,
