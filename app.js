@@ -20,7 +20,7 @@ import "./whiteboard.js";
 import { getWhiteboardThumbnail, clearWhiteboard } from "./whiteboard.js";
 import "./text-toolbar.js";
 
-const ENV = "prod";
+const ENV = "dev";
 const TABLE = ENV === "prod" ? "notas" : "notas_dev";
 
 if (ENV === "dev") {
@@ -419,15 +419,32 @@ if (window.visualViewport) {
 window.addEventListener("btn-hint-finished", actualizarVisibilidadMini);
 
 function getEditorText() {
-  let text = editor.textContent || "";
+  // Clonar el contenido del editor para manipularlo sin afectar el DOM original
+  const clone = editor.cloneNode(true);
+
+  // Reemplazar todos los <br> por saltos de línea reales, para no perderlos
+  const brs = clone.querySelectorAll("br");
+  brs.forEach((br) => {
+    br.replaceWith("\n");
+  });
+
+  // Obtener el texto limpio, preservando los saltos de línea
+  let text = clone.textContent || "";
   text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
   return text;
 }
 
 function setEditorText(text) {
   editor.innerHTML = "";
+  editor.textContent = "";
+  // Remover todos los nodos hijo
+  while (editor.firstChild) {
+    editor.removeChild(editor.firstChild);
+  }
+  // Crear un nodo de texto limpio
   if (text) {
-    editor.appendChild(document.createTextNode(text));
+    const node = document.createTextNode(text);
+    editor.appendChild(node);
   }
 }
 
@@ -605,6 +622,12 @@ async function confirmar() {
     editor.style.color = TEXTO_COLOR;
     updateHeight();
     scrollToEditorAndFocus();
+    // Limpieza final: remover cualquier <br> que contenteditable haya creado
+    setTimeout(() => {
+      const brs = editor.querySelectorAll("br");
+      brs.forEach((br) => br.remove());
+      editor.innerHTML = "";
+    }, 0);
     return;
   }
 
@@ -613,8 +636,16 @@ async function confirmar() {
   editor.style.color = TEXTO_COLOR;
   updateHeight();
   scrollToEditorAndFocus();
+
   guardar(mensaje)
-    .then(() => setCanvasImage(true))
+    .then(() => {
+      // Limpieza final: remover cualquier <br> que contenteditable haya creado
+      const brs = editor.querySelectorAll("br");
+      brs.forEach((br) => br.remove());
+      // Limpiar cualquier espacio en blanco residual
+      editor.innerHTML = "";
+      setCanvasImage(true);
+    })
     .finally(() => {
       guardando = false;
     });
@@ -632,6 +663,14 @@ function actualizarColorEditor() {
 }
 
 editor.addEventListener("input", () => {
+  // Limpiar automáticamente cualquier <br> que el navegador inserte
+  // implícitamente al principio del editor vacío. Se remueven todos los
+  // <br> que queden como primer hijo (no solo cuando hay exactamente
+  // 2 nodos), para que funcione también al pegar texto o escribir rápido.
+  while (editor.firstChild && editor.firstChild.nodeName === "BR") {
+    editor.firstChild.remove();
+  }
+
   updateHeight();
   scrollToCaret();
   actualizarColorEditor();
